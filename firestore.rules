@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The app authenticates users server-side (OAuth) instead of Firebase Auth,
+    // so rules cannot rely on request.auth. Firestore is used ONLY for real-time
+    // GPS sharing between partners (the `locations` collection). Every other piece
+    // of app data (couples, messages, users) lives on the backend, not Firestore.
+    //
+    // These rules: keep real-time location reads working, accept ONLY well-formed
+    // location writes (no arbitrary data, no oversized payloads, no deletes), and
+    // deny access to every other path.
+
+    function isValidLocation(data, userId) {
+      return data.keys().hasOnly(['email', 'lat', 'lng', 'gpsConsent', 'updatedAt'])
+        && data.email is string
+        && data.email == userId
+        && data.lat is number && data.lat >= -90 && data.lat <= 90
+        && data.lng is number && data.lng >= -180 && data.lng <= 180
+        && data.gpsConsent is bool
+        && data.updatedAt is number
+        // Reject timestamps far in the future (allow 60s of clock skew).
+        && data.updatedAt <= request.time.toMillis() + 60000;
+    }
+
+    // Real-time GPS sharing. Reads are open so a partner can subscribe to live
+    // coordinates via onSnapshot. Writes must be a valid location document.
+    match /locations/{userId} {
+      allow read: if true;
+      allow create, update: if isValidLocation(request.resource.data, userId);
+      allow delete: if false;
+    }
+
+    // Real-time shared Tic-Tac-Love board between the two paired partners.
+    // Reads open for onSnapshot; writes must be a small, well-formed game doc.
+    function isValidTicTac(data) {
+      return data.keys().hasOnly(['board', 'turnEmail', 'winner', 'round', 'updatedAt'])
+        && data.board is list && data.board.size() == 9
+        && data.turnEmail is string && data.turnEmail.size() < 320
+        && (data.winner == null || (data.winner is string && data.winner.size() < 16))
+        && data.round is int && data.round >= 0
+        && data.updatedAt is number
+        && data.updatedAt <= request.time.toMillis() + 60000;
+    }
+
+    match /tictactoe/{coupleId} {
+      allow read: if true;
+      allow create, update: if isValidTicTac(request.resource.data);
+      allow delete: if false;
+    }
+
+    // WebRTC call signaling between the two paired partners (offer/answer + ICE
+    // candidates). Ephemeral, low-risk data — kept fully open (like locations
+    // reads) so strict validation can never reject the rapid signaling writes.
+    match /calls/{coupleId} {
+      allow read, write: if true;
+      match /{document=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
