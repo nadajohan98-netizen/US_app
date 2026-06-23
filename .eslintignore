@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+coverage
+.vite
+.dist
+db.json
+server.ts
+backend
+*.config.js
+*.config.ts
