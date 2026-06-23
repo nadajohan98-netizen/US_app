@@ -1,0 +1,5 @@
+{
+  "name": "Us",
+  "description": "Una aplicación interactiva para parejas a distancia. Incluye medidor de calidez, citas virtuales por videollamada, dibujo compartido táctil en vivo, centro de juegos (quiz de parejas, verdad o reto, tic-tac-amor) y un álbum compartido donde ambos suben sus fotos y quedan juntas.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
+}
